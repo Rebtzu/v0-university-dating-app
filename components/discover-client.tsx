@@ -29,10 +29,13 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
   const loadProfiles = async () => {
     setIsLoading(true)
     try {
+      console.log("[v0] Loading profiles for user:", userId)
+
       // Get profiles that user hasn't swiped on yet
       const { data: swipedIds } = await supabase.from("swipes").select("swiped_id").eq("swiper_id", userId)
 
       const swipedUserIds = swipedIds?.map((s) => s.swiped_id) || []
+      console.log("[v0] Already swiped on:", swipedUserIds.length, "profiles")
 
       // Build query for profiles
       let query = supabase
@@ -61,7 +64,12 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
       const { data, error } = await query.limit(20)
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Error loading profiles:", error)
+        throw error
+      }
+
+      console.log("[v0] Loaded", data?.length || 0, "profiles")
 
       // Sort photos by order
       const profilesWithSortedPhotos = (data || []).map((profile) => ({
@@ -82,6 +90,7 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
     if (!currentProfile) return
 
     setSwipeDirection(action === "like" ? "right" : "left")
+    console.log("[v0] Swiping", action, "on profile:", currentProfile.id)
 
     try {
       // Record the swipe
@@ -91,7 +100,12 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
         action,
       })
 
-      if (error) throw error
+      if (error) {
+        console.error("[v0] Error recording swipe:", error)
+        throw error
+      }
+
+      console.log("[v0] Swipe recorded successfully")
 
       // Wait for animation
       setTimeout(() => {
