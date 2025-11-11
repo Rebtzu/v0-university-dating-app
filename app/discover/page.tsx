@@ -20,8 +20,9 @@ export default async function DiscoverPage() {
     redirect("/complete-profile")
   }
 
-  // Get user preferences
-  const { data: preferences } = await supabase.from("preferences").select("*").eq("user_id", user.id).single()
+  const { data: preferencesData } = await supabase.from("preferences").select("*").eq("user_id", user.id)
+
+  const preferences = preferencesData && preferencesData.length > 0 ? preferencesData[0] : null
 
   // If no preferences, redirect to setup
   if (!preferences) {
