@@ -442,19 +442,7 @@ export default function ProfileClient({
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between">
-                        <Label>Solo mi universidad</Label>
-                        <Switch
-                          checked={prefsForm.same_university_only}
-                          onCheckedChange={(checked) =>
-                            setPrefsForm({
-                              ...prefsForm,
-                              same_university_only: checked,
-                            })
-                          }
-                          className="data-[state=checked]:bg-[#8B1538]"
-                        />
-                      </div>
+                      
 
                       <Button
                         onClick={handleSavePreferences}
