@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { createClient } from "@/lib/supabase/client"
-import type { ProfileWithPhotos, Preferences, Profile } from "@/lib/types"
+import type { ProfileWithPhotos, Preferences } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import Image from "next/image"
@@ -12,57 +12,57 @@ import { useRouter } from "next/navigation"
 interface DiscoverClientProps {
   userId: string
   preferences: Preferences
-  userProfile: Profile
 }
 
-export default function DiscoverClient({ userId, preferences, userProfile }: DiscoverClientProps) {
+export default function DiscoverClient({ userId, preferences }: DiscoverClientProps) {
   const [profiles, setProfiles] = useState<ProfileWithPhotos[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null)
-  const [viewMode, setViewMode] = useState<"discover" | "browse">("discover")
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     loadProfiles()
-  }, [viewMode])
+  }, [])
 
   const loadProfiles = async () => {
     setIsLoading(true)
     try {
-      console.log("[v0] Loading profiles for user:", userId, "mode:", viewMode)
+      console.log("[v0] Loading profiles for user:", userId)
 
-      let swipedUserIds: string[] = []
+      // Get profiles that user hasn't swiped on yet
+      const { data: swipedIds } = await supabase.from("swipes").select("swiped_id").eq("swiper_id", userId)
 
-      if (viewMode === "discover") {
-        const { data: swipedIds } = await supabase.from("swipes").select("swiped_id").eq("swiper_id", userId)
-        swipedUserIds = swipedIds?.map((s) => s.swiped_id) || []
-        console.log("[v0] Already swiped on:", swipedUserIds.length, "profiles")
-      }
+      const swipedUserIds = swipedIds?.map((s) => s.swiped_id) || []
+      console.log("[v0] Already swiped on:", swipedUserIds.length, "profiles")
 
+      // Build query for profiles
       let query = supabase
         .from("profiles")
         .select("*, profile_photos(*)")
         .neq("id", userId)
         .eq("profile_complete", true)
 
-      if (viewMode === "discover") {
-        if (preferences.show_me !== "everyone") {
-          query = query.eq("gender", preferences.show_me)
-        }
+      // Apply preferences
+      if (preferences.show_me !== "everyone") {
+        query = query.eq("gender", preferences.show_me)
+      }
 
-        if (preferences.same_university_only) {
-          query = query.eq("university", userProfile.university)
-        }
+      if (preferences.same_university_only) {
+        const { data: myProfile } = await supabase.from("profiles").select("university").eq("id", userId).single()
 
-        // Exclude already swiped profiles
-        if (swipedUserIds.length > 0) {
-          query = query.not("id", "in", `(${swipedUserIds.join(",")})`)
+        if (myProfile) {
+          query = query.eq("university", myProfile.university)
         }
       }
 
-      const { data, error } = await query.limit(50)
+      // Exclude already swiped profiles
+      if (swipedUserIds.length > 0) {
+        query = query.not("id", "in", `(${swipedUserIds.join(",")})`)
+      }
+
+      const { data, error } = await query.limit(20)
 
       if (error) {
         console.error("[v0] Error loading profiles:", error)
@@ -70,8 +70,8 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
       }
 
       console.log("[v0] Loaded", data?.length || 0, "profiles")
-      console.log("[v0] Sample profile data:", data?.[0])
 
+      // Sort photos by order
       const profilesWithSortedPhotos = (data || []).map((profile) => ({
         ...profile,
         profile_photos: (profile.profile_photos || []).sort((a, b) => a.photo_order - b.photo_order),
@@ -93,6 +93,7 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
     console.log("[v0] Swiping", action, "on profile:", currentProfile.id)
 
     try {
+      // Record the swipe
       const { error } = await supabase.from("swipes").insert({
         swiper_id: userId,
         swiped_id: currentProfile.id,
@@ -106,6 +107,7 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
 
       console.log("[v0] Swipe recorded successfully")
 
+      // Wait for animation
       setTimeout(() => {
         setSwipeDirection(null)
         setCurrentIndex((prev) => prev + 1)
@@ -187,24 +189,11 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
             </div>
             <h2 className="mb-2 text-2xl font-bold text-[#8B1538]">No hay más perfiles</h2>
             <p className="mb-6 text-muted-foreground">
-              {viewMode === "discover"
-                ? "Has visto todos los perfiles disponibles. Prueba el modo explorar para ver todos."
-                : "No hay perfiles disponibles en este momento."}
+              Has visto todos los perfiles disponibles. Vuelve más tarde para ver nuevos usuarios.
             </p>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => {
-                  setCurrentIndex(0)
-                  setViewMode(viewMode === "discover" ? "browse" : "discover")
-                }}
-                className="flex-1 bg-[#8B1538] hover:bg-[#6B0F2B]"
-              >
-                {viewMode === "discover" ? "Ver todos" : "Modo descubrir"}
-              </Button>
-              <Button onClick={() => router.refresh()} variant="outline" className="flex-1">
-                Actualizar
-              </Button>
-            </div>
+            <Button onClick={() => router.refresh()} className="bg-[#8B1538] hover:bg-[#6B0F2B]">
+              Actualizar
+            </Button>
           </Card>
         </main>
       </div>
@@ -245,33 +234,6 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
 
       <main className="flex flex-1 items-center justify-center p-4 md:p-6">
         <div className="relative w-full max-w-sm">
-          <div className="mb-4 flex justify-center">
-            <div className="inline-flex rounded-lg border border-[#8B1538]/20 p-1">
-              <button
-                onClick={() => {
-                  setCurrentIndex(0)
-                  setViewMode("discover")
-                }}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  viewMode === "discover" ? "bg-[#8B1538] text-white" : "text-muted-foreground hover:text-[#8B1538]"
-                }`}
-              >
-                Descubrir
-              </button>
-              <button
-                onClick={() => {
-                  setCurrentIndex(0)
-                  setViewMode("browse")
-                }}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-                  viewMode === "browse" ? "bg-[#8B1538] text-white" : "text-muted-foreground hover:text-[#8B1538]"
-                }`}
-              >
-                Explorar todos
-              </button>
-            </div>
-          </div>
-
           <Card
             className={`relative h-[600px] w-full overflow-hidden transition-transform duration-300 ${
               swipeDirection === "right"
@@ -282,7 +244,7 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
             }`}
           >
             <div className="relative h-full w-full">
-              {currentProfile.profile_photos && currentProfile.profile_photos.length > 0 ? (
+              {currentProfile.profile_photos.length > 0 ? (
                 <Image
                   src={currentProfile.profile_photos[0].photo_url || "/placeholder.svg"}
                   alt={currentProfile.full_name}
@@ -322,61 +284,36 @@ export default function DiscoverClient({ userId, preferences, userProfile }: Dis
             </div>
           </Card>
 
-          {viewMode === "discover" ? (
-            <div className="mt-6 flex items-center justify-center gap-6">
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => handleSwipe("pass")}
-                className="h-16 w-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
-              >
-                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </Button>
+          <div className="mt-6 flex items-center justify-center gap-6">
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => handleSwipe("pass")}
+              className="h-16 w-16 rounded-full border-2 border-red-500 text-red-500 hover:bg-red-50 hover:text-red-600"
+            >
+              <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </Button>
 
-              <Button
-                size="lg"
-                onClick={() => handleSwipe("like")}
-                className="h-20 w-20 rounded-full bg-[#8B1538] hover:bg-[#6B0F2B]"
-              >
-                <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-                  />
-                </svg>
-              </Button>
-            </div>
-          ) : (
-            <div className="mt-6 flex items-center justify-center gap-4">
-              <Button
-                onClick={() => setCurrentIndex((prev) => Math.max(0, prev - 1))}
-                disabled={currentIndex === 0}
-                variant="outline"
-                className="h-12 w-12 rounded-full"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Button>
-              <Button
-                onClick={() => setCurrentIndex((prev) => Math.min(profiles.length - 1, prev + 1))}
-                disabled={currentIndex === profiles.length - 1}
-                variant="outline"
-                className="h-12 w-12 rounded-full"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </Button>
-            </div>
-          )}
+            <Button
+              size="lg"
+              onClick={() => handleSwipe("like")}
+              className="h-20 w-20 rounded-full bg-[#8B1538] hover:bg-[#6B0F2B]"
+            >
+              <svg className="h-10 w-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
+                />
+              </svg>
+            </Button>
+          </div>
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            {currentIndex + 1} de {profiles.length} perfiles
+            {profiles.length - currentIndex - 1} perfiles restantes
           </p>
         </div>
       </main>

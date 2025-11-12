@@ -13,13 +13,10 @@ export default async function DiscoverPage() {
     redirect("/auth/login")
   }
 
+  // Get user profile
   const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
 
   if (!profile) {
-    redirect("/complete-profile")
-  }
-
-  if (!profile.profile_complete) {
     redirect("/complete-profile")
   }
 
@@ -27,9 +24,10 @@ export default async function DiscoverPage() {
 
   const preferences = preferencesData && preferencesData.length > 0 ? preferencesData[0] : null
 
+  // If no preferences, redirect to setup
   if (!preferences) {
     redirect("/preferences/setup")
   }
 
-  return <DiscoverClient userId={user.id} preferences={preferences} userProfile={profile} />
+  return <DiscoverClient userId={user.id} preferences={preferences} />
 }

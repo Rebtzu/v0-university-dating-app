@@ -8,9 +8,9 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "GarzaTinder - App de Citas de la UAEH",
+  title: "UAEH Dating - App de Citas de la Universidad Autónoma del Estado de Hidalgo",
   description:
-    "GarzaTinder: La app de citas exclusiva para estudiantes de la Universidad Autónoma del Estado de Hidalgo. Conecta con otros Garzas y encuentra tu match perfecto.",
+    "La app de citas exclusiva para estudiantes de la UAEH. Conecta con estudiantes de tu universidad y encuentra tu match perfecto.",
   generator: "v0.app",
   icons: {
     icon: [
