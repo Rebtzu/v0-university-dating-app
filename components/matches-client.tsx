@@ -16,14 +16,24 @@ interface MatchesClientProps {
 
 export default function MatchesClient({ matches, profiles, currentUserId, unreadCounts }: MatchesClientProps) {
   useEffect(() => {
-    console.log("[v0] MatchesClient - Matches:", matches)
-    console.log("[v0] MatchesClient - Profiles:", profiles)
-    console.log("[v0] MatchesClient - Current user:", currentUserId)
+    console.log("[v0] Matches page loaded")
+    console.log("[v0] Matches count:", matches.length)
+    console.log("[v0] Profiles count:", profiles.length)
+    console.log("[v0] Current user:", currentUserId)
   }, [matches, profiles, currentUserId])
 
   const getMatchedUser = (match: Match) => {
     const matchedUserId = match.user1_id === currentUserId ? match.user2_id : match.user1_id
-    return profiles.find((p) => p.id === matchedUserId)
+    const profile = profiles.find((p) => p.id === matchedUserId)
+    console.log(
+      "[v0] Getting matched user for match:",
+      match.id,
+      "-> user:",
+      matchedUserId,
+      "-> profile:",
+      profile?.full_name || "NOT FOUND",
+    )
+    return profile
   }
 
   const formatLastMessageTime = (timestamp: string | undefined) => {
@@ -47,7 +57,7 @@ export default function MatchesClient({ matches, profiles, currentUserId, unread
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-white">
         <div className="container flex h-16 items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#8B1538]">UniMatch</h1>
+          <h1 className="text-2xl font-bold text-[#8B1538]">GarzaTinder</h1>
           <nav className="flex gap-4">
             <Link href="/discover" className="flex items-center gap-2 text-muted-foreground hover:text-[#8B1538]">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -107,15 +117,13 @@ export default function MatchesClient({ matches, profiles, currentUserId, unread
             <div className="grid gap-4 md:grid-cols-2">
               {matches.map((match) => {
                 const matchedUser = getMatchedUser(match)
-                console.log("[v0] Rendering match:", match.id, "Matched user:", matchedUser?.full_name || "Not found")
-
                 if (!matchedUser) {
-                  console.warn("[v0] No matched user found for match:", match.id)
+                  console.warn("[v0] Could not find matched user for match:", match.id)
                   return null
                 }
 
                 const unreadCount = unreadCounts[match.id] || 0
-                const photo = matchedUser.profile_photos?.[0]
+                const photo = matchedUser.profile_photos[0]
 
                 return (
                   <Link key={match.id} href={`/chat/${match.id}`} className="group">

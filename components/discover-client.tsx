@@ -5,6 +5,14 @@ import { createClient } from "@/lib/supabase/client"
 import type { ProfileWithPhotos, Preferences } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -20,8 +28,9 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
   const [isLoading, setIsLoading] = useState(true)
   const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null)
   const [showAllMode, setShowAllMode] = useState(false)
-  const [matchedProfile, setMatchedProfile] = useState<ProfileWithPhotos | null>(null)
   const [showMatchDialog, setShowMatchDialog] = useState(false)
+  const [matchedProfile, setMatchedProfile] = useState<ProfileWithPhotos | null>(null)
+  const [newMatchId, setNewMatchId] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
 
@@ -86,6 +95,39 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
     }
   }
 
+  const checkForMatch = async (swipedUserId: string): Promise<string | null> => {
+    console.log("[v0] Checking for match with user:", swipedUserId)
+
+    const { data: existingLike } = await supabase
+      .from("swipes")
+      .select("*")
+      .eq("swiper_id", swipedUserId)
+      .eq("swiped_id", userId)
+      .in("action", ["like", "super_like"])
+      .maybeSingle()
+
+    if (existingLike) {
+      console.log("[v0] Found existing like! Checking for match...")
+
+      const user1 = userId < swipedUserId ? userId : swipedUserId
+      const user2 = userId < swipedUserId ? swipedUserId : userId
+
+      const { data: match } = await supabase
+        .from("matches")
+        .select("id")
+        .eq("user1_id", user1)
+        .eq("user2_id", user2)
+        .maybeSingle()
+
+      if (match) {
+        console.log("[v0] Match found with ID:", match.id)
+        return match.id
+      }
+    }
+
+    return null
+  }
+
   const handleSwipe = async (action: "like" | "pass") => {
     const currentProfile = profiles[currentIndex]
     if (!currentProfile) return
@@ -95,20 +137,10 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
     try {
       if (action === "like") {
-        const { data: existingLike } = await supabase
-          .from("swipes")
-          .select("*")
-          .eq("swiper_id", currentProfile.id)
-          .eq("swiped_id", userId)
-          .eq("action", "like")
-          .single()
-
-        console.log("[v0] Checking for existing like:", existingLike)
-
-        if (existingLike) {
-          console.log("[v0] It's a match! Showing notification")
+        const matchId = await checkForMatch(currentProfile.id)
+        if (matchId) {
           setMatchedProfile(currentProfile)
-          setShowMatchDialog(true)
+          setNewMatchId(matchId)
         }
       }
 
@@ -125,9 +157,17 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
       console.log("[v0] Swipe recorded successfully")
 
+      if (action === "like" && matchedProfile) {
+        setShowMatchDialog(true)
+      }
+
       setTimeout(() => {
         setSwipeDirection(null)
         setCurrentIndex((prev) => prev + 1)
+        if (!showMatchDialog) {
+          setMatchedProfile(null)
+          setNewMatchId(null)
+        }
       }, 300)
     } catch (error) {
       console.error("[v0] Error recording swipe:", error)
@@ -246,6 +286,64 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
   return (
     <div className="flex min-h-screen flex-col">
+      <Dialog open={showMatchDialog} onOpenChange={setShowMatchDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-2xl font-bold text-[#8B1538]">¡Es un Match!</DialogTitle>
+            <DialogDescription className="text-center">
+              A ti y a {matchedProfile?.full_name} les gustaron mutuamente
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-center py-6">
+            <div className="relative h-32 w-32">
+              {matchedProfile?.profile_photos[0] ? (
+                <Image
+                  src={matchedProfile.profile_photos[0].photo_url || "/placeholder.svg"}
+                  alt={matchedProfile.full_name}
+                  fill
+                  className="rounded-full object-cover ring-4 ring-[#8B1538]"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-full bg-[#8B1538]/10 ring-4 ring-[#8B1538]">
+                  <svg className="h-16 w-16 text-[#8B1538]/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                </div>
+              )}
+            </div>
+          </div>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            <Button
+              onClick={() => {
+                setShowMatchDialog(false)
+                if (newMatchId) {
+                  router.push(`/chat/${newMatchId}`)
+                }
+              }}
+              className="w-full bg-[#8B1538] hover:bg-[#6B0F2B]"
+            >
+              Enviar mensaje
+            </Button>
+            <Button
+              onClick={() => {
+                setShowMatchDialog(false)
+                setMatchedProfile(null)
+                setNewMatchId(null)
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              Seguir descubriendo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <header className="border-b bg-white">
         <div className="container flex h-16 items-center justify-between">
           <h1 className="text-2xl font-bold text-[#8B1538]">GarzaTinder</h1>
