@@ -80,7 +80,7 @@ export default function SignUpPage() {
       <div className="w-full max-w-md">
         <Card className="border-[#8B1538]/20">
           <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-3xl font-bold text-[#8B1538]">Únete a UAEH Dating</CardTitle>
+            <CardTitle className="text-3xl font-bold text-[#8B1538]">Únete a GarzaTinder</CardTitle>
             <CardDescription>Crea tu cuenta con tu correo institucional</CardDescription>
           </CardHeader>
           <CardContent>
