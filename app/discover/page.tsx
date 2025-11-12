@@ -24,10 +24,5 @@ export default async function DiscoverPage() {
 
   const preferences = preferencesData && preferencesData.length > 0 ? preferencesData[0] : null
 
-  // If no preferences, redirect to setup
-  if (!preferences) {
-    redirect("/preferences/setup")
-  }
-
   return <DiscoverClient userId={user.id} preferences={preferences} />
 }
