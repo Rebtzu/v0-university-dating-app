@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { useEffect } from "react"
 
 interface MatchesClientProps {
   matches: Match[]
@@ -14,6 +15,12 @@ interface MatchesClientProps {
 }
 
 export default function MatchesClient({ matches, profiles, currentUserId, unreadCounts }: MatchesClientProps) {
+  useEffect(() => {
+    console.log("[v0] MatchesClient - Matches:", matches)
+    console.log("[v0] MatchesClient - Profiles:", profiles)
+    console.log("[v0] MatchesClient - Current user:", currentUserId)
+  }, [matches, profiles, currentUserId])
+
   const getMatchedUser = (match: Match) => {
     const matchedUserId = match.user1_id === currentUserId ? match.user2_id : match.user1_id
     return profiles.find((p) => p.id === matchedUserId)
@@ -100,10 +107,15 @@ export default function MatchesClient({ matches, profiles, currentUserId, unread
             <div className="grid gap-4 md:grid-cols-2">
               {matches.map((match) => {
                 const matchedUser = getMatchedUser(match)
-                if (!matchedUser) return null
+                console.log("[v0] Rendering match:", match.id, "Matched user:", matchedUser?.full_name || "Not found")
+
+                if (!matchedUser) {
+                  console.warn("[v0] No matched user found for match:", match.id)
+                  return null
+                }
 
                 const unreadCount = unreadCounts[match.id] || 0
-                const photo = matchedUser.profile_photos[0]
+                const photo = matchedUser.profile_photos?.[0]
 
                 return (
                   <Link key={match.id} href={`/chat/${match.id}`} className="group">

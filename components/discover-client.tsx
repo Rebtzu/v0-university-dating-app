@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation"
 
 interface DiscoverClientProps {
   userId: string
-  preferences: Preferences
+  preferences: Preferences | null
 }
 
 export default function DiscoverClient({ userId, preferences }: DiscoverClientProps) {
@@ -19,50 +19,52 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [swipeDirection, setSwipeDirection] = useState<"left" | "right" | null>(null)
+  const [showAllMode, setShowAllMode] = useState(false)
+  const [matchedProfile, setMatchedProfile] = useState<ProfileWithPhotos | null>(null)
+  const [showMatchDialog, setShowMatchDialog] = useState(false)
   const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
     loadProfiles()
-  }, [])
+  }, [showAllMode])
 
   const loadProfiles = async () => {
     setIsLoading(true)
     try {
-      console.log("[v0] Loading profiles for user:", userId)
+      console.log("[v0] Loading profiles for user:", userId, "Show all mode:", showAllMode)
 
-      // Get profiles that user hasn't swiped on yet
-      const { data: swipedIds } = await supabase.from("swipes").select("swiped_id").eq("swiper_id", userId)
+      let swipedUserIds: string[] = []
 
-      const swipedUserIds = swipedIds?.map((s) => s.swiped_id) || []
-      console.log("[v0] Already swiped on:", swipedUserIds.length, "profiles")
-
-      // Build query for profiles
-      let query = supabase
-        .from("profiles")
-        .select("*, profile_photos(*)")
-        .neq("id", userId)
-        .eq("profile_complete", true)
-
-      // Apply preferences
-      if (preferences.show_me !== "everyone") {
-        query = query.eq("gender", preferences.show_me)
+      if (!showAllMode) {
+        const { data: swipedIds } = await supabase.from("swipes").select("swiped_id").eq("swiper_id", userId)
+        swipedUserIds = swipedIds?.map((s) => s.swiped_id) || []
+        console.log("[v0] Already swiped on:", swipedUserIds.length, "profiles")
       }
 
-      if (preferences.same_university_only) {
-        const { data: myProfile } = await supabase.from("profiles").select("university").eq("id", userId).single()
+      let query = supabase.from("profiles").select("*, profile_photos(*)").neq("id", userId)
 
-        if (myProfile) {
-          query = query.eq("university", myProfile.university)
+      if (!showAllMode && preferences) {
+        query = query.eq("profile_complete", true)
+
+        if (preferences.show_me !== "everyone") {
+          query = query.eq("gender", preferences.show_me)
+        }
+
+        if (preferences.same_university_only) {
+          const { data: myProfile } = await supabase.from("profiles").select("university").eq("id", userId).single()
+
+          if (myProfile) {
+            query = query.eq("university", myProfile.university)
+          }
+        }
+
+        if (swipedUserIds.length > 0) {
+          query = query.not("id", "in", `(${swipedUserIds.join(",")})`)
         }
       }
 
-      // Exclude already swiped profiles
-      if (swipedUserIds.length > 0) {
-        query = query.not("id", "in", `(${swipedUserIds.join(",")})`)
-      }
-
-      const { data, error } = await query.limit(20)
+      const { data, error } = await query.limit(50)
 
       if (error) {
         console.error("[v0] Error loading profiles:", error)
@@ -71,7 +73,6 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
       console.log("[v0] Loaded", data?.length || 0, "profiles")
 
-      // Sort photos by order
       const profilesWithSortedPhotos = (data || []).map((profile) => ({
         ...profile,
         profile_photos: (profile.profile_photos || []).sort((a, b) => a.photo_order - b.photo_order),
@@ -93,7 +94,24 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
     console.log("[v0] Swiping", action, "on profile:", currentProfile.id)
 
     try {
-      // Record the swipe
+      if (action === "like") {
+        const { data: existingLike } = await supabase
+          .from("swipes")
+          .select("*")
+          .eq("swiper_id", currentProfile.id)
+          .eq("swiped_id", userId)
+          .eq("action", "like")
+          .single()
+
+        console.log("[v0] Checking for existing like:", existingLike)
+
+        if (existingLike) {
+          console.log("[v0] It's a match! Showing notification")
+          setMatchedProfile(currentProfile)
+          setShowMatchDialog(true)
+        }
+      }
+
       const { error } = await supabase.from("swipes").insert({
         swiper_id: userId,
         swiped_id: currentProfile.id,
@@ -107,7 +125,6 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
 
       console.log("[v0] Swipe recorded successfully")
 
-      // Wait for animation
       setTimeout(() => {
         setSwipeDirection(null)
         setCurrentIndex((prev) => prev + 1)
@@ -119,6 +136,7 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
   }
 
   const calculateAge = (dateOfBirth: string) => {
+    if (!dateOfBirth) return "??"
     const today = new Date()
     const birthDate = new Date(dateOfBirth)
     let age = today.getFullYear() - birthDate.getFullYear()
@@ -147,8 +165,19 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
       <div className="flex min-h-screen flex-col">
         <header className="border-b bg-white">
           <div className="container flex h-16 items-center justify-between">
-            <h1 className="text-2xl font-bold text-[#8B1538]">UniMatch</h1>
+            <h1 className="text-2xl font-bold text-[#8B1538]">GarzaTinder</h1>
             <nav className="flex gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setShowAllMode(!showAllMode)
+                  setCurrentIndex(0)
+                }}
+                className="text-xs text-muted-foreground hover:text-[#8B1538]"
+              >
+                {showAllMode ? "Modo Normal" : "Ver Todos"}
+              </Button>
               <Link href="/matches" className="flex items-center gap-2 text-muted-foreground hover:text-[#8B1538]">
                 <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -189,11 +218,26 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
             </div>
             <h2 className="mb-2 text-2xl font-bold text-[#8B1538]">No hay más perfiles</h2>
             <p className="mb-6 text-muted-foreground">
-              Has visto todos los perfiles disponibles. Vuelve más tarde para ver nuevos usuarios.
+              {showAllMode
+                ? "Has visto todos los perfiles en la base de datos."
+                : "Has visto todos los perfiles disponibles. Intenta con 'Ver todos' para explorar más."}
             </p>
-            <Button onClick={() => router.refresh()} className="bg-[#8B1538] hover:bg-[#6B0F2B]">
-              Actualizar
-            </Button>
+            <div className="flex flex-col gap-3">
+              {!showAllMode && (
+                <Button
+                  onClick={() => {
+                    setShowAllMode(true)
+                    setCurrentIndex(0)
+                  }}
+                  className="bg-[#8B1538] hover:bg-[#6B0F2B]"
+                >
+                  Ver todos los perfiles
+                </Button>
+              )}
+              <Button onClick={() => router.refresh()} variant="outline" className="border-[#8B1538] text-[#8B1538]">
+                Actualizar
+              </Button>
+            </div>
           </Card>
         </main>
       </div>
@@ -204,8 +248,19 @@ export default function DiscoverClient({ userId, preferences }: DiscoverClientPr
     <div className="flex min-h-screen flex-col">
       <header className="border-b bg-white">
         <div className="container flex h-16 items-center justify-between">
-          <h1 className="text-2xl font-bold text-[#8B1538]">UniMatch</h1>
+          <h1 className="text-2xl font-bold text-[#8B1538]">GarzaTinder</h1>
           <nav className="flex gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowAllMode(!showAllMode)
+                setCurrentIndex(0)
+              }}
+              className="text-xs text-muted-foreground hover:text-[#8B1538]"
+            >
+              {showAllMode ? "Modo Normal" : "Ver Todos"}
+            </Button>
             <Link href="/matches" className="flex items-center gap-2 text-muted-foreground hover:text-[#8B1538]">
               <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path

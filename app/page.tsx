@@ -9,11 +9,13 @@ export default function LandingPage() {
         <div className="mx-auto max-w-3xl space-y-8">
           <div className="space-y-4">
             <h1 className="text-5xl font-bold tracking-tight text-balance md:text-6xl lg:text-7xl">
-              Encuentra tu <span className="text-[#8B1538]">match perfecto</span> en la UAEH
+              <span className="text-[#8B1538]">GarzaTinder</span>
+              <br />
+              Encuentra tu match en la UAEH
             </h1>
             <p className="mx-auto max-w-2xl text-lg text-muted-foreground text-balance md:text-xl">
               La app de citas exclusiva para estudiantes de la Universidad Autónoma del Estado de Hidalgo. Conecta con
-              estudiantes de tu campus y vive tu experiencia universitaria al máximo.
+              otros Garzas y vive tu experiencia universitaria al máximo.
             </p>
           </div>
 
@@ -87,7 +89,7 @@ export default function LandingPage() {
 
       <footer className="border-t py-6">
         <div className="container flex flex-col items-center justify-center gap-4 text-center text-sm text-muted-foreground">
-          <p>UAEH Dating - Exclusivo para la Universidad Autónoma del Estado de Hidalgo</p>
+          <p>GarzaTinder - Exclusivo para la Universidad Autónoma del Estado de Hidalgo</p>
         </div>
       </footer>
     </div>
